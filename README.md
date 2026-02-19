@@ -92,6 +92,24 @@ Firewall rules are managed by `firewall.sh`, which configures iptables to:
 > **Note:** ufw is not used. It conflicts with Docker's iptables rules and has been
 > replaced by direct iptables management via `firewall.sh` + `iptables-persistent`.
 
+### Why not ufw?
+
+Docker bypasses ufw entirely. When Docker publishes a port (e.g. `-p 8080:8080`),
+it creates rules in the **FORWARD** chain and its own **DOCKER** chain, routing
+traffic directly to the container. ufw only manages the **INPUT** chain, which
+handles traffic for host-level processes:
+
+```
+Packet → FORWARD chain → DOCKER chain → Container
+               ↑
+         ufw never sees this traffic
+```
+
+Even `sudo ufw deny 8080` has no effect — the packet never reaches INPUT because
+Docker's FORWARD rules grab it first. The `DOCKER-USER` chain is the only chain
+in the FORWARD path that Docker guarantees it won't overwrite, making it the
+correct place to filter traffic to containers.
+
 ### Setup (one-time on a fresh machine)
 
 ```bash
