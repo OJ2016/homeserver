@@ -1,0 +1,5 @@
+*/data/
+samba/share/
+*.env
+.DS_Store
+*.swp
