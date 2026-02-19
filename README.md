@@ -7,7 +7,7 @@ Dockerized home server running three isolated services on Ubuntu.
 | Service   | Image                          | Port(s)         | Network        | External Access |
 |-----------|--------------------------------|-----------------|----------------|-----------------|
 | Minecraft | itzg/minecraft-server:latest   | 25565           | minecraft_net  | Yes (public)    |
-| Jenkins   | jenkins/jenkins:lts            | 8080, 50000     | jenkins_net    | No (LAN only)   |
+| Jenkins   | Custom (jenkins/jenkins:lts + Docker CLI) | 8080, 50000     | jenkins_net    | No (LAN only)   |
 | Samba     | dperson/samba:latest           | 445             | samba_net      | No (LAN only)   |
 
 Each service runs on its own bridge network with separate data directories and no shared volumes.
@@ -156,12 +156,28 @@ Edit the port arrays at the top of `firewall.sh`:
 | `INPUT_LAN_PORTS_TCP` | Host ports open to LAN only |
 | `DOCKER_LAN_PORTS` | Docker container ports restricted to LAN |
 
+## Jenkins Docker Support
+
+Jenkins uses a custom image (`jenkins/Dockerfile`) that includes the Docker CLI.
+The host's Docker socket is mounted into the container, allowing Jenkins pipelines
+to build images and run containers.
+
+The `DOCKER_GID` variable in `jenkins/.env` must match the host's docker group ID:
+
+```bash
+stat -c '%g' /var/run/docker.sock   # find the GID
+```
+
+> **Security note:** Docker socket access gives Jenkins effective root access to the
+> host. This is acceptable for a single-user home server but should not be used in
+> multi-user or untrusted environments.
+
 ## Security
 
 - Each service runs on an **isolated Docker bridge network** — no inter-container communication
-- No shared volumes between services
-- `cap_drop: ALL` on every container
-- `no-new-privileges: true` on Jenkins and Minecraft
-- Samba adds only required capabilities (`NET_BIND_SERVICE`, `SETUID`, `SETGID`, `SYS_CHROOT`, `DAC_OVERRIDE`, `CHOWN`, `FOWNER`)
+- No shared volumes between services (except Jenkins → Docker socket)
+- `no-new-privileges: true` on all containers
+- `cap_drop: ALL` on Minecraft; Samba adds only required capabilities
+- Jenkins has Docker socket access for pipeline builds (see above)
 - Secrets (`.env` files) are git-ignored
 - Jenkins data directory must be owned by UID 1000: `sudo chown -R 1000:1000 jenkins/data`

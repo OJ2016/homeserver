@@ -1,6 +1,6 @@
 services:
   jenkins:
-    image: jenkins/jenkins:lts
+    build: .
     container_name: jenkins
     restart: unless-stopped
     ports:
@@ -8,10 +8,11 @@ services:
       - "50000:50000"
     volumes:
       - ./data:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
     env_file:
       - .env
-    cap_drop:
-      - ALL
+    group_add:
+      - "${DOCKER_GID}"
     security_opt:
       - no-new-privileges:true
     networks:
