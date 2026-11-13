@@ -3,3 +3,4 @@ samba/share/
 *.env
 .DS_Store
 *.swp
+samba/secrets/

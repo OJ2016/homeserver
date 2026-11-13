@@ -1,16 +1,22 @@
 services:
   samba:
-    image: dperson/samba:latest
+    image: dockurr/samba:4.23
     container_name: samba
     restart: unless-stopped
     ports:
       - "445:445"
+    environment:
+      # login name; uid/gid files are created with (host: fileshare / sambashare)
+      USER: fileshare
+      UID: "997"
+      GID: "1001"
+    secrets:
+      - pass
     volumes:
-      - ./share:/share
-      - ./config/smb.conf:/etc/samba/smb.conf
-    command: '-u "${SAMBA_USER};${SAMBA_PASS}"'
-    env_file:
-      - .env
+      - ./share:/shared
+      - ./config/smb.conf:/etc/samba/smb.conf:ro
+    security_opt:
+      - no-new-privileges:true
     cap_drop:
       - ALL
     cap_add:
@@ -23,6 +29,12 @@ services:
       - FOWNER
     networks:
       - samba_net
+
+# Password is read from this file inside the container (/run/secrets/pass);
+# it never appears on a command line or in the container environment.
+secrets:
+  pass:
+    file: ./secrets/samba_pass
 
 networks:
   samba_net:

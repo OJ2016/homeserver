@@ -8,7 +8,7 @@ Dockerized home server running three isolated services on Ubuntu.
 |-----------|--------------------------------|-----------------|----------------|-----------------|
 | Minecraft | itzg/minecraft-server:latest   | 25565           | minecraft_net  | Yes (public)    |
 | Jenkins   | Custom (jenkins/jenkins:lts + Docker CLI) | 8080, 50000     | jenkins_net    | No (LAN only)   |
-| Samba     | dperson/samba:latest           | 445             | samba_net      | No (LAN only)   |
+| Samba     | dockurr/samba:4.23             | 445             | samba_net      | No (LAN only)   |
 
 Each service runs on its own bridge network with separate data directories and no shared volumes.
 
@@ -19,13 +19,12 @@ Each service runs on its own bridge network with separate data directories and n
     ```bash
     cp minecraft/.env.example minecraft/.env
     cp jenkins/.env.example jenkins/.env
-    cp samba/.env.example samba/.env
     cp .env.example .env    # global config (LAN_SUBNET)
     ```
 
 2. **Edit `.env` files** — see [Environment Files](#environment-files) below.
 
-3. **Create the Samba user** (see [Fileshare User](#fileshare-user)).
+3. **Create the Samba user and its password file** (see [Fileshare User](#fileshare-user)).
 
 4. **Start all services:**
 
@@ -62,10 +61,11 @@ All `.env` files are git-ignored. Each service has a `.env.example` template.
 | `.env` | Global config — `LAN_SUBNET` for firewall rules |
 | `minecraft/.env` | Server settings (EULA, memory, version) |
 | `jenkins/.env` | Jenkins environment variables |
-| `samba/.env` | Samba user credentials, UID/GID |
+| `samba/secrets/samba_pass` | Samba password of the `fileshare` user (one line, mode 600) |
 
-For Samba, replace `<fileshare_UID>` and `<sambashare_GID>` in `samba/.env`
-with the actual UID/GID after creating the fileshare user:
+For Samba, the login user and the UID/GID that files are created with are set
+in `samba/docker-compose.yml` (`USER`, `UID`, `GID`). They must match the host
+`fileshare` user and `sambashare` group:
 
 ```bash
 id -u fileshare   # USERID
@@ -79,8 +79,14 @@ Samba authentication. Create it and set its Samba password:
 
 ```bash
 sudo useradd -r -s /usr/sbin/nologin -G sambashare fileshare
-sudo smbpasswd -a fileshare
+mkdir -p samba/secrets && chmod 700 samba/secrets
+(umask 077; printf '%s' 'THE-PASSWORD' > samba/secrets/samba_pass)
 ```
+
+The container reads the password from this file at startup (mounted as
+`/run/secrets/pass`), so it never appears on a command line, in `ps`, or in
+the container environment. Samba's own password database lives inside the
+container and is rebuilt from the file on every start.
 
 ## Firewall
 
@@ -179,5 +185,5 @@ stat -c '%g' /var/run/docker.sock   # find the GID
 - `no-new-privileges: true` on all containers
 - `cap_drop: ALL` on Minecraft; Samba adds only required capabilities
 - Jenkins has Docker socket access for pipeline builds (see above)
-- Secrets (`.env` files) are git-ignored
+- Secrets (`.env` files, `samba/secrets/`) are git-ignored
 - Jenkins data directory must be owned by UID 1000: `sudo chown -R 1000:1000 jenkins/data`
